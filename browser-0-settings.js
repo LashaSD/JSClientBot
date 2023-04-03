@@ -21,7 +21,7 @@
  */
 
 var GAME_TO_RUN='mollymage'
-var SERVER_URL='http://127.0.0.1:8080/codenjoy-contest/board/player/0?code=000000000000'
+var SERVER_URL='https://dojorena.io/codenjoy-contest/board/player/dojorena4198?code=5227769079510434156'
 
 // this is only for npm api emulation in browser
 var process = {

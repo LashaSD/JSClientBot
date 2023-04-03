@@ -21,7 +21,6 @@
  */
 
 var MollymageBoard = module.exports = function(board){
-
     var Board = require('./../../engine/board.js');
     var Games = require('./../../engine/games.js');
     var Point = require('./../../engine/point.js');
