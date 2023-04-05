@@ -99,15 +99,15 @@ var MollymageSolver = module.exports = {
             result.push(Potion)
             PendingPotions.forEach(potion => {
                 if ((x === potion.x && y === potion.y) // same position as Hero
-                || (x >= potion.x - 3 && x <= potion.x + 3 && y === potion.y) // in the range of the blast on x axis
-                || (y >= potion.y - 3 && y <= potion.y + 3 && x === potion.x)) { // in the range of the blast on y axis
+                || (x > potion.x - 3 && x < potion.x + 3 && y === potion.y) // in the range of the blast on x axis
+                || (y > potion.y - 3 && y < potion.y + 3 && x === potion.x)) { // in the range of the blast on y axis
                     result[0] = true;
                     result[1] = potion
                 } 
-                if (x >= potion.x - 3 && x <= potion.x + 3 && y === potion.y) { 
+                if (x > potion.x - 3 && x < potion.x + 3 && y === potion.y) { 
                     console.log('DEBUG: DANGER X')
                 } 
-                if (y >= potion.y - 3 && y <= potion.y + 3 && x === potion.x) {
+                if (y > potion.y - 3 && y < potion.y + 3 && x === potion.x) {
                     console.log('DEBUG: DANGER Y')
                 } 
             })
@@ -126,51 +126,55 @@ var MollymageSolver = module.exports = {
             }
             // potion blast radius check
             const res = inPotionBlastRadius(x, y)
-            const safe = res[0]
+            const InRadius = res[0]
             const Potion = res[1]
-            if (safe)
+            if (InRadius)
                 return false
             return true
         }
 
         let getPotionValid = function(x, y) {
-            let whitelist  = [elements.ENEMY_HERO, elements.ENEMY_HERO_POTION, elements.TREASURE_BOX, elements.OTHER_HERO, elements.GHOST, elements.GHOST_DEAD]
+            const whitelist  = [elements.ENEMY_HERO, elements.ENEMY_HERO_POTION, elements.TREASURE_BOX, elements.OTHER_HERO, elements.GHOST, elements.GHOST_DEAD]
+            let blacklist = [elements.WALL, elements.TREASURE_BOX_OPENING]
+            blacklist = blacklist.concat(board.getPotions()) 
+            let valid = false
             // to the left
-            for (let i = Hero.x-1; i > Hero.x - 4; i--)
+            for (let i = x-1; i > x - 4; i--)
             {
                 if (board.getPerks().includes(board.getAt(i, y)))
                     return false
                 if (whitelist.includes(board.getAt(i, y))) {
-                    return true
-                } else if (board.getAt(i, y) === elements.WALL || board.getPotions().includes(board.getAt(i, y))) break;
+                    valid = true
+                } else if (blacklist.includes(board.getAt(i, y))) break;
             }
             // to the right
-            for (let i = Hero.x+1; i < Hero.x + 4; i++)
+            for (let i = x+1; i < x + 4; i++)
             {
                 if (board.getPerks().includes(board.getAt(i, y)))
                     return false
                 if (whitelist.includes(board.getAt(i, y))) {
-                    return true
-                } else if (board.getAt(i, y) === elements.WALL || board.getPotions().includes(board.getAt(i, y))) break;
+                    valid = true
+                } else if (blacklist.includes(board.getAt(i, y))) break;
             }
             // upwards
-            for (let i = Hero.y+1; i < Hero.y + 4; i++)
+            for (let i = y+1; i < y + 4; i++)
             {
                 if (board.getPerks().includes(board.getAt(x, i)))
                     return false
                 if (whitelist.includes(board.getAt(x, i))) {
-                    return true
-                } else if (board.getAt(x, i) === elements.WALL || board.getPotions().includes(board.getAt(x, i))) break;
+                    valid = true
+                } else if (blacklist.includes(board.getAt(x, i))) break;
             }
             // downwards
-            for (let i = Hero.y-1; i > Hero.y - 4; i--)
+            for (let i = y-1; i > y - 4; i--)
             {
                 if (board.getPerks().includes(board.getAt(x, i)))
                     return false
                 if (whitelist.includes(board.getAt(x, i))) {
-                    return true
-                } else if (board.getAt(x, i) === elements.WALL || board.getPotions().includes(board.getAt(x, i))) break;
+                    valid = true
+                } else if (blacklist.includes(board.getAt(x, i))) break;
             }
+            return valid 
         }
 
 
@@ -178,16 +182,29 @@ var MollymageSolver = module.exports = {
         let PotionAction = '' // Potion Action
         let MovementAction = '' // Movement Action
 
+        /// TARGET EVALUATION
+
+        const EnemyHeroes = board.getEnemyHeroes()
+        const OtherHeroes = board.getOtherHeroes()
+        const Perks = board.getPerks() 
+        const TreasureBoxes = board.getTreasureBoxes()
+
+
+        let Target = null
+        let EvaluateTargets = function() {
+
+        }
+
+
         /// PATHFINDING
-        
         let availableDirections = []
-        if (!board.isBarrierAt(Hero.x, Hero.y + 1) && LastMovement !== "Down" && checkCellSafety(Hero.x, Hero.y + 1, "UP")) // UP
+        if (!board.isBarrierAt(Hero.x, Hero.y + 1) && checkCellSafety(Hero.x, Hero.y + 1, "UP")) // UP
             availableDirections.push("Up")
-        if (!board.isBarrierAt(Hero.x, Hero.y - 1) && LastMovement !== "Up" && checkCellSafety(Hero.x, Hero.y - 1, "DOWN")) // DOWN
+        if (!board.isBarrierAt(Hero.x, Hero.y - 1) && checkCellSafety(Hero.x, Hero.y - 1, "DOWN")) // DOWN
                 availableDirections.push("Down")
-        if (!board.isBarrierAt(Hero.x + 1, Hero.y) && LastMovement !== "Left" && checkCellSafety(Hero.x + 1, Hero.y, "RIGHT")) // RIGHT
+        if (!board.isBarrierAt(Hero.x + 1, Hero.y) && checkCellSafety(Hero.x + 1, Hero.y, "RIGHT")) // RIGHT
                 availableDirections.push("Right")
-        if (!board.isBarrierAt(Hero.x - 1, Hero.y) && LastMovement !== "Right" && checkCellSafety(Hero.x - 1, Hero.y, "LEFT")) // LEFT
+        if (!board.isBarrierAt(Hero.x - 1, Hero.y) && checkCellSafety(Hero.x - 1, Hero.y, "LEFT")) // LEFT
                 availableDirections.push("Left")
         
 
@@ -197,27 +214,56 @@ var MollymageSolver = module.exports = {
         let inDangerZone = res[0]
         let Potion = res[1]
         const BarrierWhitelist = [elements.HERO, elements.HERO_POTION]
+        const boardSize = board.size
         let checkTopBottom = function(x, y) {
-            if (!board.isBarrierAt(x, y + 1) && checkCellSafety(x, y+1)) {
-                console.log("DEBUG: Path Clear UP: " + (y+1))
-                return "Up"
+            let UpBetter = boardSize - y > y // more free space in the top 
+
+            if (UpBetter) {
+                if (!board.isBarrierAt(x, y + 1) && checkCellSafety(x, y+1)) {
+                    console.log("DEBUG: Path Clear UP: " + (y+1))
+                    return "Up"
+                }
+                if (!board.isBarrierAt(x, y - 1) && checkCellSafety(x, y-1)) {
+                    console.log("DEBUG: Path Clear DOWN: " + (y - 1))
+                    return "Down"
+                }
+            } else {
+                if (!board.isBarrierAt(x, y - 1) && checkCellSafety(x, y-1)) {
+                    console.log("DEBUG: Path Clear DOWN: " + (y - 1))
+                    return "Down"
+                }
+                if (!board.isBarrierAt(x, y + 1) && checkCellSafety(x, y+1)) {
+                    console.log("DEBUG: Path Clear UP: " + (y+1))
+                    return "Up"
+                }
             }
-            if (!board.isBarrierAt(x, y - 1) && checkCellSafety(x, y-1)) {
-                console.log("DEBUG: Path Clear DOWN: " + (y - 1))
-                return "Down"
-            }
+            
             return false
         }
 
         let checkLeftRight = function(x, y) {
-            if (!board.isBarrierAt(x - 1, y) && checkCellSafety(x-1, y)) {
-                console.log("DEBUG: Path Clear LEFT: " + (x+1))
-                return "Left"
+            let RightBetter = boardSize - x > x 
+
+            if (RightBetter) {
+                if (!board.isBarrierAt(x + 1, y) && checkCellSafety(x+1, y)) {
+                    console.log("DEBUG: Path Clear RIGHT: " + (x+1))
+                    return "Right"
+                }
+                if (!board.isBarrierAt(x - 1, y) && checkCellSafety(x-1, y)) {
+                    console.log("DEBUG: Path Clear LEFT: " + (x+1))
+                    return "Left"
+                }
+            } else {
+                if (!board.isBarrierAt(x - 1, y) && checkCellSafety(x-1, y)) {
+                    console.log("DEBUG: Path Clear LEFT: " + (x+1))
+                    return "Left"
+                }
+                if (!board.isBarrierAt(x + 1, y) && checkCellSafety(x+1, y)) {
+                    console.log("DEBUG: Path Clear RIGHT: " + (x+1))
+                    return "Right"
+                }
             }
-            if (!board.isBarrierAt(x + 1, y) && checkCellSafety(x+1, y)) {
-                console.log("DEBUG: Path Clear RIGHT: " + (x+1))
-                return "Right"
-            }
+
             return false
         }
 
@@ -227,37 +273,93 @@ var MollymageSolver = module.exports = {
             console.log("DEBUG: HERO - " + Hero.x + " " + Hero.y)
             console.log("DEBUG: POTION - " + Potion.x + " " + Potion.y)
             const iterDepth = 6
+            // since the hero cant move inside a potion the side that the hero is on is being calculated and moved towards that direction if there is a passthrough
+            // Horizontal Iteration
+            let RelativeDirectionX = Hero.x - Potion.x > 0 ? 1 : -1 // 1 means to the right of the potion -1 to the left of the potion
+            let IncrementCheckX = (i) => {
+                if (board.isBarrierAt(i, Hero.y) && !BarrierWhitelist.includes(board.getAt(i, Hero.y)))
+                    return true
+                let result = checkTopBottom(i, Hero.y)
+                if (result) {
+                    if (Hero.x === i) {
+                        PotionEscapeDirection = result
+                        console.log("DEBUG: X " + "Got Result")
+                    } else {
+                        PotionEscapeDirection = RelativeDirectionX === 1 ? "Right" : "Left"
+                        console.log("DEBUG: X " + "Keep Going")
+                    }
+                    return true
+                }
+                return false
+            }
+
+            // Vertical Iteration
+            let RelativeDirectionY = Hero.y - Potion.y > 0 ? 1 : -1 // -1
+            let IncrementCheck = function(i)
+            {
+                if (board.isBarrierAt(Hero.x, i) && !BarrierWhitelist.includes(board.getAt(Hero.x, i))) {
+                    console.log(board.getAt(Hero.x, i))
+                    return true
+                }
+                let result = checkLeftRight(Hero.x, i)
+                if (result) {
+                    if (i === Hero.y) {
+                        PotionEscapeDirection = result
+                        console.log("DEBUG: Y " + "Got Result")
+                    } else {
+                        PotionEscapeDirection = RelativeDirectionY === 1 ? "Up" : "Down"
+                        console.log("DEBUG: Y " + "Keep Going")
+                    }
+                    return true
+                }
+                return false
+            }
+
+
+            if (board.getAt(Hero.x, Hero.y) === elements.HERO_POTION) {
+                /// Left
+                for (let i = Hero.x; i >= Hero.x - 3; i--)
+                {
+                    RelativeDirectionX = -1
+                    const res = IncrementCheckX(i)
+                    if (res) 
+                        break;
+                }
+                /// Right
+                for (let i = Hero.x; i <= Hero.x + 3; i++)
+                {
+                    RelativeDirectionX = 1
+                    const res = IncrementCheckX(i)
+                    if (res) 
+                        break;
+                }
+                /// Up
+                for (let i = Hero.y; i <= Potion.y + iterDepth; i++) {
+                    RelativeDirectionY = 1
+                    const res = IncrementCheck(i)
+                    if (res) 
+                        break;
+                }
+                /// Down
+                for (let i = Hero.y; i >= Potion.y - iterDepth; i--) {
+                    RelativeDirectionY = -1
+                    const res = IncrementCheck(i)
+                    if (res) 
+                        break;
+                }
+            }
             if (Hero.y === Potion.y) 
             {
-                // since the hero cant move inside a potion the side that the hero is on is being calculated and moved towards that direction if there is a passthrough
-                // Horizontal Iteration
-                const RelativeDirectionX = Hero.x - Potion.x > 0 ? 1 : -1 // 1 means to the right of the potion -1 to the left of the potion
-                let IncrementCheck = (i) => {
-                    if (board.isBarrierAt(i, Hero.y) && !BarrierWhitelist.includes(board.getAt(i, Hero.y)))
-                        return true
-                    let result = checkTopBottom(i, Hero.y)
-                    if (result) {
-                        if (Hero.x === i) {
-                            PotionEscapeDirection = result
-                            console.log("DEBUG: X " + "Got Result")
-                        } else {
-                            PotionEscapeDirection = RelativeDirectionX === 1 ? "Right" : "Left"
-                            console.log("DEBUG: X " + "Keep Going")
-                        }
-                        return true
-                    }
-                    return false
-                }
                 if (RelativeDirectionX === 1)
                 {
                     for (let i = Hero.x; i <= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
-                        const res = IncrementCheck(i)
+                        const res = IncrementCheckX(i)
                         if (res) 
                             break;
                     }
                 } else {
                     for (let i = Hero.x; i >= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
-                        const res = IncrementCheck(i)
+                        const res = IncrementCheckX(i)
                         if (res) 
                             break;
                     }
@@ -265,27 +367,6 @@ var MollymageSolver = module.exports = {
                 
             } 
             if (Hero.x === Potion.x) {
-                // Vertical Iteration
-                const RelativeDirectionY = Hero.y - Potion.y > 0 ? 1 : -1 // -1
-                let IncrementCheck = function(i)
-                {
-                    if (board.isBarrierAt(Hero.x, i) && !BarrierWhitelist.includes(board.getAt(Hero.x, i))) {
-                        console.log(board.getAt(Hero.x, i))
-                        return true
-                    }
-                    let result = checkLeftRight(Hero.x, i)
-                    if (result) {
-                        if (i === Hero.y) {
-                            PotionEscapeDirection = result
-                            console.log("DEBUG: Y " + "Got Result")
-                        } else {
-                            PotionEscapeDirection = RelativeDirectionY === 1 ? "Up" : "Down"
-                            console.log("DEBUG: Y " + "Keep Going")
-                        }
-                        return true
-                    }
-                    return false
-                }
                 if (RelativeDirectionY === 1)
                 {
                     for (let i = Hero.y; i <= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
@@ -434,6 +515,7 @@ var MollymageSolver = module.exports = {
             MainDirection = PotionEscapeDirection
             console.log("POTION EVASION: " + MainDirection + '\n')
         } else {
+            availableDirections.splice(availableDirections.indexOf(LastMovement), 1)
             let PathDirection = availableDirections[Math.floor(Math.random() * availableDirections.length)]
             MainDirection = PathDirection
             console.log("PATHFINDING DIRECTION: " + MainDirection + '\n')
@@ -545,10 +627,10 @@ var MollymageSolver = module.exports = {
 
         }
 
-        console.log("GOING TO: " + MainDirection)
 
         let answer1 = !PotionAction ? "" : PotionAction
         let answer2 = !MovementAction ? "" : MovementAction
+        console.log("GOING TO: " + answer1.toString() + answer2.toString())
         return answer1.toString() + answer2.toString()
     }
 };
