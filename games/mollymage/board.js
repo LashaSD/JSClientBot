@@ -66,7 +66,6 @@ var MollymageBoard = module.exports = function(board){
         all = all.concat(board.getTreasureBoxes());
         all = all.concat(board.getOtherHeroes());
         all = all.concat(board.getEnemyHeroes());
-        all = all.concat(board.getFutureBlasts());
         return board.removeDuplicates(all);
     };
 

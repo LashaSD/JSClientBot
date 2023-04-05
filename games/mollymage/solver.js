@@ -47,14 +47,48 @@ var MollymageSolver = module.exports = {
             "Plant": Direction.ACT
         }
 
-        
+        console.clear()
         console.log("------------------------")
 
+        // utils 
         let getLengthBetweenPoints = (x1, y1, x2, y2) => {
             let d = (x2 - x1)*(x2 - x1) + (y2 - y1)*(y2 - y1)
             return Math.sqrt(d)
         }
 
+        let toPosValue = function(Direction) {
+            let pos = {'x': 0, 'y':0}
+            switch(Direction) {
+                case "Right":
+                    pos.x += 1
+                    break;
+                case "Left":
+                    pos.x -= 1;
+                    break;
+                case "Up": 
+                    pos.y += 1;
+                    break;
+                case "Down": 
+                    pos.y -= 1;
+                    break;
+            }
+            return pos
+        }
+
+        let inverseDirection = function(Direction) {
+            switch(Direction) {
+                case "Right":
+                    return "Left"
+                case "Left":
+                    return "Right"
+                case "Up": 
+                    return "Down"
+                    break;
+                case "Down": 
+                    return "Up"
+            }
+        }
+        // getters
         const PendingPotions = board.getPotions()
         let inPotionBlastRadius = function(x, y)
         {
@@ -91,10 +125,10 @@ var MollymageSolver = module.exports = {
                     return false
             }
             // potion blast radius check
-            const res = board.isInPotionBlastRadius(x, y)
-            const dangerCode = res[0]
+            const res = inPotionBlastRadius(x, y)
+            const safe = res[0]
             const Potion = res[1]
-            if (dangerCode)
+            if (safe)
                 return false
             return true
         }
@@ -104,30 +138,38 @@ var MollymageSolver = module.exports = {
             // to the left
             for (let i = Hero.x-1; i > Hero.x - 4; i--)
             {
+                if (board.getPerks().includes(board.getAt(i, y)))
+                    return false
                 if (whitelist.includes(board.getAt(i, y))) {
                     return true
-                } else if (board.getAt(i, y) === elements.WALL) break;
+                } else if (board.getAt(i, y) === elements.WALL || board.getPotions().includes(board.getAt(i, y))) break;
             }
             // to the right
             for (let i = Hero.x+1; i < Hero.x + 4; i++)
             {
+                if (board.getPerks().includes(board.getAt(i, y)))
+                    return false
                 if (whitelist.includes(board.getAt(i, y))) {
                     return true
-                } else if (board.getAt(i, y) === elements.WALL) break;
+                } else if (board.getAt(i, y) === elements.WALL || board.getPotions().includes(board.getAt(i, y))) break;
             }
             // upwards
             for (let i = Hero.y+1; i < Hero.y + 4; i++)
             {
+                if (board.getPerks().includes(board.getAt(x, i)))
+                    return false
                 if (whitelist.includes(board.getAt(x, i))) {
                     return true
-                } else if (board.getAt(x, i) === elements.WALL) break;
+                } else if (board.getAt(x, i) === elements.WALL || board.getPotions().includes(board.getAt(x, i))) break;
             }
             // downwards
             for (let i = Hero.y-1; i > Hero.y - 4; i--)
             {
+                if (board.getPerks().includes(board.getAt(x, i)))
+                    return false
                 if (whitelist.includes(board.getAt(x, i))) {
                     return true
-                } else if (board.getAt(x, i) === elements.WALL) break;
+                } else if (board.getAt(x, i) === elements.WALL || board.getPotions().includes(board.getAt(x, i))) break;
             }
         }
 
@@ -139,9 +181,9 @@ var MollymageSolver = module.exports = {
         /// PATHFINDING
         
         let availableDirections = []
-        if (!board.isBarrierAt(Hero.x, Hero.y + 1) && LastMovement !== "Down" && checkCellSafety(Hero.x, Hero.y - 1, "UP")) // UP
+        if (!board.isBarrierAt(Hero.x, Hero.y + 1) && LastMovement !== "Down" && checkCellSafety(Hero.x, Hero.y + 1, "UP")) // UP
             availableDirections.push("Up")
-        if (!board.isBarrierAt(Hero.x, Hero.y - 1) && LastMovement !== "Up" && checkCellSafety(Hero.x, Hero.y + 1, "DOWN")) // DOWN
+        if (!board.isBarrierAt(Hero.x, Hero.y - 1) && LastMovement !== "Up" && checkCellSafety(Hero.x, Hero.y - 1, "DOWN")) // DOWN
                 availableDirections.push("Down")
         if (!board.isBarrierAt(Hero.x + 1, Hero.y) && LastMovement !== "Left" && checkCellSafety(Hero.x + 1, Hero.y, "RIGHT")) // RIGHT
                 availableDirections.push("Right")
@@ -151,57 +193,16 @@ var MollymageSolver = module.exports = {
 
         /// POTION EVASION 
 
-        // const PendingPotions = board.getPotions()
-        // let result = board.isInPotionBlastRadius(Hero.x, Hero.y)
-        // let dangerCode = result[0]
-        // let Potion = result[1]
         let res = inPotionBlastRadius(Hero.x, Hero.y)
         let inDangerZone = res[0]
         let Potion = res[1]
-        // console.log("DEBUG: " + dangerCode + Potion)
-        // if (dangerCode)
-        // {
-        //     inDangerZone = true
-        //     switch(dangerCode){
-        //         case 1:
-        //             console.log("DEBUG: DANGER XY")
-        //             break;
-        //         case 2:
-        //             console.log('DEBUG: DANGER X')
-        //             break;
-        //         case 3:
-        //             console.log('DEBUG: DANGER Y')
-        //             break;
-        //     }
-        // }
-
-        // PendingPotions.forEach(potion => {
-        //     if ((Hero.x === potion.x && Hero.y === potion.y) // same position as Hero
-        //     || (Hero.x >= potion.x - 3 && Hero.x <= potion.x + 3 && Hero.y === potion.y) // in the range of the blast on x axis
-        //     || (Hero.y >= potion.y - 3 && Hero.y <= potion.y + 3 && Hero.x === potion.x)) { // in the range of the blast on y axis
-        //         inDangerZone = true;
-        //         Potion = potion
-        //     } 
-        //     if (Hero.x >= potion.x - 3 && Hero.x <= potion.x + 3 && Hero.y === potion.y) { 
-        //         console.log('DEBUG: DANGER X')
-        //     } 
-        //     if (Hero.y >= potion.y - 3 && Hero.y <= potion.y + 3 && Hero.x === potion.x) {
-        //         console.log('DEBUG: DANGER Y')
-        //     } 
-        // })
-
-        const whitelist = [elements.HERO, elements.HERO_POTION]
+        const BarrierWhitelist = [elements.HERO, elements.HERO_POTION]
         let checkTopBottom = function(x, y) {
-            if (board.isBarrierAt(x,y) && !whitelist.includes(board.getAt(x, y)))
-            {
-                console.log("DEBUG: Barrier Detection TB: " + x)
-                return false
-            }
-            if (!board.isBarrierAt(x, y + 1)) {
+            if (!board.isBarrierAt(x, y + 1) && checkCellSafety(x, y+1)) {
                 console.log("DEBUG: Path Clear UP: " + (y+1))
                 return "Up"
             }
-            if (!board.isBarrierAt(x, y - 1)) {
+            if (!board.isBarrierAt(x, y - 1) && checkCellSafety(x, y-1)) {
                 console.log("DEBUG: Path Clear DOWN: " + (y - 1))
                 return "Down"
             }
@@ -209,16 +210,11 @@ var MollymageSolver = module.exports = {
         }
 
         let checkLeftRight = function(x, y) {
-            if (board.isBarrierAt(x,y) && !whitelist.includes(board.getAt(x, y)))
-            {
-                console.log("DEBUG: Barrier Detection LR: " + y)
-                return false
-            }
-            if (!board.isBarrierAt(x - 1, y)) {
+            if (!board.isBarrierAt(x - 1, y) && checkCellSafety(x-1, y)) {
                 console.log("DEBUG: Path Clear LEFT: " + (x+1))
                 return "Left"
             }
-            if (!board.isBarrierAt(x + 1, y)) {
+            if (!board.isBarrierAt(x + 1, y) && checkCellSafety(x+1, y)) {
                 console.log("DEBUG: Path Clear RIGHT: " + (x+1))
                 return "Right"
             }
@@ -237,6 +233,8 @@ var MollymageSolver = module.exports = {
                 // Horizontal Iteration
                 const RelativeDirectionX = Hero.x - Potion.x > 0 ? 1 : -1 // 1 means to the right of the potion -1 to the left of the potion
                 let IncrementCheck = (i) => {
+                    if (board.isBarrierAt(i, Hero.y) && !BarrierWhitelist.includes(board.getAt(i, Hero.y)))
+                        return true
                     let result = checkTopBottom(i, Hero.y)
                     if (result) {
                         if (Hero.x === i) {
@@ -252,13 +250,13 @@ var MollymageSolver = module.exports = {
                 }
                 if (RelativeDirectionX === 1)
                 {
-                    for (let i = Potion.x; i <= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
+                    for (let i = Hero.x; i <= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
                         const res = IncrementCheck(i)
                         if (res) 
                             break;
                     }
                 } else {
-                    for (let i = Potion.x; i >= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
+                    for (let i = Hero.x; i >= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
                         const res = IncrementCheck(i)
                         if (res) 
                             break;
@@ -271,6 +269,10 @@ var MollymageSolver = module.exports = {
                 const RelativeDirectionY = Hero.y - Potion.y > 0 ? 1 : -1 // -1
                 let IncrementCheck = function(i)
                 {
+                    if (board.isBarrierAt(Hero.x, i) && !BarrierWhitelist.includes(board.getAt(Hero.x, i))) {
+                        console.log(board.getAt(Hero.x, i))
+                        return true
+                    }
                     let result = checkLeftRight(Hero.x, i)
                     if (result) {
                         if (i === Hero.y) {
@@ -286,13 +288,13 @@ var MollymageSolver = module.exports = {
                 }
                 if (RelativeDirectionY === 1)
                 {
-                    for (let i = Potion.y; i <= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
+                    for (let i = Hero.y; i <= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
                         const res = IncrementCheck(i)
                         if (res) 
                             break;
                     }
                 } else {
-                    for (let i = Potion.y; i >= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
+                    for (let i = Hero.y; i >= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
                         const res = IncrementCheck(i)
                         if (res) 
                             break;
@@ -318,11 +320,28 @@ var MollymageSolver = module.exports = {
             if (isBordered && (element === elements.GHOST || element === elements.GHOST_DEAD) )
             {
                 console.log("DEBUG: ghost detected on the BORDER")
-                console.log("DEBUG: ")
                 console.log(nearHero)
-                console.log(nearHero[0], nearHero[8])
                 /// CHECK FOR SAFE AND FREE CELL AWAY FROM THE GHOST
-                GhostEscapeDirection = gridDirections[8 - i]
+                GhostEscapeDirection = gridDirections[i]
+                let PossibleDirections = []
+                // get all directions but the ghostdirection
+                for(let key in gridDirections) {
+                    let value = gridDirections[key]
+                    if (value !== GhostEscapeDirection)
+                        PossibleDirections.push(value)
+                }
+                for (let direction of PossibleDirections)
+                {
+                    let PosOffset = toPosValue(direction)
+                    if (board.isBarrierAt(Hero.x + PosOffset.x, Hero.y + PosOffset.y))
+                        continue
+                    let safe = checkCellSafety(Hero.x + PosOffset.x, Hero.y + PosOffset.y)
+                    if (safe) {
+                        GhostEscapeDirection = direction
+                        break;
+                    }
+                }
+
                 break;
             } else if (element === elements.GHOST || element === elements.GHOST_DEAD) {
                 console.log("DEBUG: ghost detected on the CORNER")
@@ -352,34 +371,16 @@ var MollymageSolver = module.exports = {
                 DirIndex = availableDirections.indexOf(Dir2)
                 if (DirIndex !== -1) 
                     availableDirections.splice(DirIndex, 1)
-                if (availableDirections.length > 0) {
-                    while (availableDirections.length > 0)
-                    {
-                        let tempDir = availableDirections[Math.floor(Math.random() * availableDirections.length)];
-                        let pos = {'x': Hero.x, 'y': Hero.y}
-                        switch(tempDir){
-                            case "Right":
-                                pos.x += 1
-                                break;
-                            case "Left":
-                                pos.x -= 1;
-                                break;
-                            case "Up": 
-                                pos.y += 1;
-                                break;
-                            case "Down": 
-                                pos.y -= 1;
-                                break;
-                        }
-                        const safe = checkCellSafety(pos.x, pos.y)
-                        if (safe) {
-                            GhostEscapeDirection = tempDir
-                            break
-                        } else {
-                            availableDirections.pop
-                        }
+
+                for (let i = 0; i < availableDirections.length; i++)
+                {
+                    let dir = availableDirections[i]
+                    let offset = toPosValue(dir)
+                    const safe = checkCellSafety(Hero.x + offset.x, Hero.y + offset.y)
+                    if (safe) {
+                        GhostEscapeDirection = dir
+                        break
                     }
-                    
                 }
             }
         }
@@ -452,58 +453,99 @@ var MollymageSolver = module.exports = {
         if (PotionAction)
         {
             let PossibleDirections = []
+            let Blacklist = []
+            let PosOffset = MainDirection ? toPosValue(MainDirection) : {'x': 0, 'y': 0}
+            const Pos = {'x': Hero.x + PosOffset.x, 'y': Hero.y + PosOffset.y}
+            
+            if (MainDirection)
+                Blacklist.push(inverseDirection(MainDirection))
+
+            console.log("DEBUG: BLACKLIST " + Blacklist)
+
+            let incrementX = (x, y, Direction) => {
+                if (Blacklist.includes(Direction))
+                    return true;
+
+                if (board.isBarrierAt(x, y) && !BarrierWhitelist.includes(board.getAt(x, y))) {
+                    console.log(board.getAt(x, y))
+                    return true;
+                }
+                let result = checkTopBottom(x, y)
+                if (result) {
+                    PossibleDirections.push(Direction)
+                    return true
+                }
+            }
+
+            let incrementY = (x, y, Direction) => {
+                if (Blacklist.includes(Direction))
+                    return true;
+
+                if (board.isBarrierAt(x, y) && !BarrierWhitelist.includes(board.getAt(x, y))) {
+                    console.log(board.getAt(x, y))
+                    return true;
+                }
+                let result = checkLeftRight(x, y)
+                if (result) {
+                    PossibleDirections.push(Direction)
+                    return true
+                }
+            }
 
             // RIGHT
-            for (let i = Hero.x; i < Hero.x + 4; i++)
+            for (let i = Pos.x+1; i < Pos.x + 4; i++)
             {
-                let result = checkTopBottom(i, Hero.y)
-                if (result) {
-                    PossibleDirections.push("Right") 
+                if (incrementX(i, Pos.y, "Right"))
                     break;
-                }
             }
 
             // LEFT
-            for (let i = Hero.x; i > Hero.x - 4; i--)
+            for (let i = Pos.x-1; i > Pos.x - 4; i--)
             {
-                let result = checkTopBottom(i, Hero.y)
-                if (result) {
-                    PossibleDirections.push("Left")
+                if (incrementX(i, Pos.y, "Left"))
                     break;
-                }
             }
             // UP
-            for (let i = Hero.y; i < Hero.y + 4; i++)
+            for (let i = Pos.y+1; i < Pos.y + 4; i++)
             {
-                let result = checkLeftRight(Hero.x, i)
-                if (result) {
-                    PossibleDirections.push("Up")
+                if (incrementY(Pos.x, i, "Up"))
                     break;
-                }
             }
             // DOWN
-            for (let i = Hero.y; i > Hero.y - 4; i--)
+            for (let i = Pos.y-1; i > Pos.y - 4; i--)
             {
-                let result = checkLeftRight(Hero.x, i)
-                if (result) {
-                    PossibleDirections.push("Down")
+                if (incrementY(Pos.x, i, "Down"))
                     break;
-                }
             }
+
             if (PossibleDirections.length === 0) {
                 console.log("DEBUG: ACTION CANCELLED")
-                MovementAction = null
-            } else {
-                if (!PossibleDirections.includes(MainDirection)) {
-                    let PathDirection = PossibleDirections[Math.floor(Math.random() * PossibleDirections.length)]
-                    MainDirection = PathDirection
-                    MovementAction = Actions[MainDirection]
-                    console.log("SUICIDE HOTLINE GUIDED DIRECTION: " + MainDirection + '\n')
+                PotionAction = null
+                if (!PossibleDirections.length) {
+                    console.log("ERROR412") // view death in video Debug05 
+                    // MovementAction = null // idunno anymore
                 }
-                    
+            } else {
+                // if (!PossibleDirections.includes(MainDirection)) {
+                //     let PathDirection = PossibleDirections[Math.floor(Math.random() * PossibleDirections.length)]
+                //     MainDirection = PathDirection
+                //     MovementAction = Actions[MainDirection]
+                //     console.log("SUICIDE HOTLINE GUIDED DIRECTION: " + MainDirection + '\n')
+                // }
+
+                // console.log(PossibleDirections)
+                // MainDirection = PossibleDirections[Math.floor(Math.random() * PossibleDirections.length)]
+                // MovementAction = Actions[MainDirection]
+                if (!MainDirection) {
+
+                }
+                console.log("DEBUG: POS " + Pos.x + " " + Pos.y)
+                console.log("SUICIDE HOTLINE DIRECTION: " + MainDirection)
             }
 
         }
+
+        console.log("GOING TO: " + MainDirection)
 
         let answer1 = !PotionAction ? "" : PotionAction
         let answer2 = !MovementAction ? "" : MovementAction
