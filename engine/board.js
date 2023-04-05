@@ -123,12 +123,17 @@ var Board = module.exports = function(board) {
 
     var getNear = function(x, y) {
         var result = [];
-        for (var dx = -1; dx <= 1; dx++) {
-            for (var dy = -1; dy <= 1; dy++) {
-                if (dx == 0 && dy == 0) continue;
-                result.push(getAt(x + dx, y + dy));
-            }
-        }
+        result.push(getAt(x-1, y+1))
+        result.push(getAt(x,y+1))
+        result.push(getAt(x+1,y+1))
+
+        result.push(getAt(x-1, y))
+        result.push(getAt(x, y))
+        result.push(getAt(x+1,y))
+        
+        result.push(getAt(x-1, y-1))
+        result.push(getAt(x, y-1))
+        result.push(getAt(x+1, y-1))
         return result;
     }
 

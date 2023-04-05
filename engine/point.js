@@ -50,6 +50,10 @@ var Point = module.exports = function(x, y, direction, element) {
         return element
     }
 
+    var getDirection = function(){
+        return direction
+    }
+
     var moveTo = function(direction) {
         return pt(direction.changeX(x), direction.changeY(y));
     }
@@ -86,6 +90,7 @@ var Point = module.exports = function(x, y, direction, element) {
         getX,
         getY,
         getElement,
+        getDirection,
         moveTo,
         move,
         shiftLeft,

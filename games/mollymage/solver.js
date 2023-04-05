@@ -20,8 +20,11 @@
  * #L%
  */
 
+const stuff = require('./../../engine/stuff.js');
+const elements = require('./elements.js');
 const { WALL, TREASURE_BOX } = require('./elements.js');
 
+let LastMovement = null
 
 var MollymageSolver = module.exports = {
 
@@ -44,183 +47,466 @@ var MollymageSolver = module.exports = {
             "Plant": Direction.ACT
         }
 
-
-        // TODO your code here
         
+        console.log("------------------------")
+
         let getLengthBetweenPoints = (x1, y1, x2, y2) => {
             let d = (x2 - x1)*(x2 - x1) + (y2 - y1)*(y2 - y1)
             return Math.sqrt(d)
         }
-    
-        let getPotionValid = (x, y) => {
-            let a = false
-            for (let i = x - 3; i <= x + 3; x++) {
-                if (board.getAt(i, y) !== Element["WALL"]) {
-                    a = true 
-                } else a = false
-            }
-            for (let i = y - 3; i <= y; i++)
+
+        const PendingPotions = board.getPotions()
+        let inPotionBlastRadius = function(x, y)
+        {
+            let result = []
+            let inDangerZone = false 
+            let Potion = null
+            result.push(inDangerZone)
+            result.push(Potion)
+            PendingPotions.forEach(potion => {
+                if ((x === potion.x && y === potion.y) // same position as Hero
+                || (x >= potion.x - 3 && x <= potion.x + 3 && y === potion.y) // in the range of the blast on x axis
+                || (y >= potion.y - 3 && y <= potion.y + 3 && x === potion.x)) { // in the range of the blast on y axis
+                    result[0] = true;
+                    result[1] = potion
+                } 
+                if (x >= potion.x - 3 && x <= potion.x + 3 && y === potion.y) { 
+                    console.log('DEBUG: DANGER X')
+                } 
+                if (y >= potion.y - 3 && y <= potion.y + 3 && x === potion.x) {
+                    console.log('DEBUG: DANGER Y')
+                } 
+            })
+            return result
+        } 
+
+        const BorderIndexes = [1,3,5,7]
+        let checkCellSafety = (x, y) => {
+            // ghost check
+            const near = board.getNear(x, y)
+            for (let i = 0; i < near.length; i++)
             {
-                if (board.getAt(x, y) !== Element["WALL"])
+                const cell = near[i]
+                if (BorderIndexes.includes(i) && (cell === elements.GHOST || cell === elements.GHOST_DEAD))
+                    return false
+            }
+            // potion blast radius check
+            const res = board.isInPotionBlastRadius(x, y)
+            const dangerCode = res[0]
+            const Potion = res[1]
+            if (dangerCode)
+                return false
+            return true
+        }
+
+        let getPotionValid = function(x, y) {
+            let whitelist  = [elements.ENEMY_HERO, elements.ENEMY_HERO_POTION, elements.TREASURE_BOX, elements.OTHER_HERO, elements.GHOST, elements.GHOST_DEAD]
+            // to the left
+            for (let i = Hero.x-1; i > Hero.x - 4; i--)
+            {
+                if (whitelist.includes(board.getAt(i, y))) {
                     return true
+                } else if (board.getAt(i, y) === elements.WALL) break;
+            }
+            // to the right
+            for (let i = Hero.x+1; i < Hero.x + 4; i++)
+            {
+                if (whitelist.includes(board.getAt(i, y))) {
+                    return true
+                } else if (board.getAt(i, y) === elements.WALL) break;
+            }
+            // upwards
+            for (let i = Hero.y+1; i < Hero.y + 4; i++)
+            {
+                if (whitelist.includes(board.getAt(x, i))) {
+                    return true
+                } else if (board.getAt(x, i) === elements.WALL) break;
+            }
+            // downwards
+            for (let i = Hero.y-1; i > Hero.y - 4; i--)
+            {
+                if (whitelist.includes(board.getAt(x, i))) {
+                    return true
+                } else if (board.getAt(x, i) === elements.WALL) break;
             }
         }
 
 
         const Hero = board.getHero()
-        let Action1 = ''
-        let Action2 = ''
-
-        console.log(board.getAt(Hero.x, Hero.y))
-
-        const TreasureBoxes = board.getTreasureBoxes()
-        const enemyHeroes = board.getEnemyHeroes()
-        const otherHeroes = board.getOtherHeroes()
-        const ghosts = board.getGhosts()
-        let target = null
-        let ShortestDistance = null
-
-        // Third Priority
-        ShortestDistance = null
-        for (let i = 0; i < ghosts.length; i++) {
-            let PendingTarget = ghosts[i]
-            let Distance = getLengthBetweenPoints(Hero.x, Hero.y, PendingTarget.x, PendingTarget.y)
-            if (Distance > ShortestDistance) {
-                ShortestDistance = Distance
-                target = PendingTarget
-            }
-        }
-
-        // Second Priority
-        ShortestDistance = null
-        for (let i = 0; i < otherHeroes.length; i++) {
-            let PendingTarget = otherHeroes[i]
-            let Distance = getLengthBetweenPoints(Hero.x, Hero.y, PendingTarget.x, PendingTarget.y)
-            if (Distance > ShortestDistance) {
-                ShortestDistance = Distance
-                target = PendingTarget
-            }
-        }
-
-        ShortestDistance = null
-        // Top Priority Target
-        for (let i = 0; i < enemyHeroes.length; i++) {
-            let PendingTarget = enemyHeroes[i]
-            let Distance = getLengthBetweenPoints(Hero.x, Hero.y, PendingTarget.x, PendingTarget.y)
-            if (Distance > ShortestDistance) {
-                ShortestDistance = Distance
-                target = PendingTarget
-            }
-        }
-
+        let PotionAction = '' // Potion Action
+        let MovementAction = '' // Movement Action
 
         /// PATHFINDING
-        let queue = []
-        let visited = []
+        
+        let availableDirections = []
+        if (!board.isBarrierAt(Hero.x, Hero.y + 1) && LastMovement !== "Down" && checkCellSafety(Hero.x, Hero.y - 1, "UP")) // UP
+            availableDirections.push("Up")
+        if (!board.isBarrierAt(Hero.x, Hero.y - 1) && LastMovement !== "Up" && checkCellSafety(Hero.x, Hero.y + 1, "DOWN")) // DOWN
+                availableDirections.push("Down")
+        if (!board.isBarrierAt(Hero.x + 1, Hero.y) && LastMovement !== "Left" && checkCellSafety(Hero.x + 1, Hero.y, "RIGHT")) // RIGHT
+                availableDirections.push("Right")
+        if (!board.isBarrierAt(Hero.x - 1, Hero.y) && LastMovement !== "Right" && checkCellSafety(Hero.x - 1, Hero.y, "LEFT")) // LEFT
+                availableDirections.push("Left")
         
 
-        const maxIters = 10000
-        let Iters = 0
-        function generatePath(Start, Goal) {
-            // if (board.isBarrierAt(Goal.x, Goal.y))
-            //         return []
-            queue = []
-            visited = []
-            queue.push({'Node': {'x': Start.x, 'y': Start.y}, 'lastNode': null})
-            while (queue.length > 0)
-            {
-                let NodeInfo = queue.shift()
-                if (ValidNodeIter(NodeInfo.Node, NodeInfo.lastNode, Goal))
-                    break
-                console.log(visited.length)
-                Iters += 1;
-                if (Iters >= maxIters || board.isGameOver()) 
-                    return []
-            }
-            let path = []
-            let currentNode = Goal
-            while (visited[currentNode] !== null)
-            {
-                if (currentNode !== null)
-                    path.push(currentNode)
-                currentNode = visited[currentNode] // last Pos
-            }
-            path.reverse()
-            return path
-        }
+        /// POTION EVASION 
 
-
-        let ValidNodeIter = function(CurrentNode, LastNode, GoalNode)
-        {
-            if (board.isBarrierAt(CurrentNode.x, CurrentNode.y))
-                return false;
-            if (visited.indexOf(CurrentNode) > 0)
-                return false;
-            visited[CurrentNode] = LastNode
-            if (CurrentNode.x === GoalNode.x && CurrentNode.y === GoalNode.y)
-                return true
-            queue.push({"Node": {'x': CurrentNode.x, 'y': CurrentNode.y + 1 }, "lastNode": CurrentNode})
-            queue.push({"Node": {'x': CurrentNode.x, 'y': CurrentNode.y - 1 }, "lastNode": CurrentNode})
-            queue.push({"Node": {'x': CurrentNode.x + 1, 'y': CurrentNode.y }, "lastNode": CurrentNode})
-            queue.push({"Node": {'x': CurrentNode.x - 1, 'y': CurrentNode.y }, "lastNode": CurrentNode})
-            return false;
-        }
-
-
-        ///
-
-        // console.log(`X: ${directionX}, Y: ${directionY}`)
-
-        // switch(directionX) {
-        //     case "Right":
-        //         if (!board.isBarrierAt(Hero.x+1, Hero.y))
-        //         {
-        //             console.log("Here")
-        //             Action2 = Actions["Right"]
-        //         } else if (board.getAt(Hero.x+1, Hero.y) !== Element["WALL"]) {
-        //             Action1 = Actions["Plant"]
-        //         }
-        //         break;
-        //     case "Left":
-        //         if (!board.isBarrierAt(Hero.x-1, Hero.y))
-        //         {
-        //             Action2 = Actions["Left"]
-        //         } else if (board.getAt(Hero.x-1, Hero.y) !== Element["WALL"]) {
-        //             Action1 = Actions["Plant"]
-        //         }
-        // }
-
-        // if (!Action2) {
-        //     switch(directionY) {
-        //         case "Down":
-        //             if (!board.isBarrierAt(Hero.x, Hero.y-1))
-        //             {
-        //                 Action2 = Actions["Down"]
-        //             } else if (board.getAt(Hero.x, Hero.y-1) !== Element["WALL"]) {
-        //                 Action1 = Actions["Plant"]
-        //             }
+        // const PendingPotions = board.getPotions()
+        // let result = board.isInPotionBlastRadius(Hero.x, Hero.y)
+        // let dangerCode = result[0]
+        // let Potion = result[1]
+        let res = inPotionBlastRadius(Hero.x, Hero.y)
+        let inDangerZone = res[0]
+        let Potion = res[1]
+        // console.log("DEBUG: " + dangerCode + Potion)
+        // if (dangerCode)
+        // {
+        //     inDangerZone = true
+        //     switch(dangerCode){
+        //         case 1:
+        //             console.log("DEBUG: DANGER XY")
         //             break;
-        //         case "Up":
-        //             if (!board.isBarrierAt(Hero.x, Hero.y+1))
-        //             {
-        //                 Action2 = Actions["Up"]
-        //             } else if (board.getAt(Hero.x, Hero.y-1) !== Element["WALL"]) {
-        //                 Action1 = Actions["Plant"]
-        //             }
+        //         case 2:
+        //             console.log('DEBUG: DANGER X')
+        //             break;
+        //         case 3:
+        //             console.log('DEBUG: DANGER Y')
         //             break;
         //     }
         // }
 
-        console.log(`X: ${Hero.x}, Y: ${Hero.y}`)
-        target = {'x': 13, 'y': 5}
-        console.log(generatePath(Hero, target))
+        // PendingPotions.forEach(potion => {
+        //     if ((Hero.x === potion.x && Hero.y === potion.y) // same position as Hero
+        //     || (Hero.x >= potion.x - 3 && Hero.x <= potion.x + 3 && Hero.y === potion.y) // in the range of the blast on x axis
+        //     || (Hero.y >= potion.y - 3 && Hero.y <= potion.y + 3 && Hero.x === potion.x)) { // in the range of the blast on y axis
+        //         inDangerZone = true;
+        //         Potion = potion
+        //     } 
+        //     if (Hero.x >= potion.x - 3 && Hero.x <= potion.x + 3 && Hero.y === potion.y) { 
+        //         console.log('DEBUG: DANGER X')
+        //     } 
+        //     if (Hero.y >= potion.y - 3 && Hero.y <= potion.y + 3 && Hero.x === potion.x) {
+        //         console.log('DEBUG: DANGER Y')
+        //     } 
+        // })
 
-        if (!Action1 && getPotionValid(Hero.x, Hero.y)) 
-            Action1 = Actions["Plant"]
+        const whitelist = [elements.HERO, elements.HERO_POTION]
+        let checkTopBottom = function(x, y) {
+            if (board.isBarrierAt(x,y) && !whitelist.includes(board.getAt(x, y)))
+            {
+                console.log("DEBUG: Barrier Detection TB: " + x)
+                return false
+            }
+            if (!board.isBarrierAt(x, y + 1)) {
+                console.log("DEBUG: Path Clear UP: " + (y+1))
+                return "Up"
+            }
+            if (!board.isBarrierAt(x, y - 1)) {
+                console.log("DEBUG: Path Clear DOWN: " + (y - 1))
+                return "Down"
+            }
+            return false
+        }
 
-        
-        let answer1 = !Action1 ? "" : Action1
-        let answer2 = !Action2 ? "" : Action2
+        let checkLeftRight = function(x, y) {
+            if (board.isBarrierAt(x,y) && !whitelist.includes(board.getAt(x, y)))
+            {
+                console.log("DEBUG: Barrier Detection LR: " + y)
+                return false
+            }
+            if (!board.isBarrierAt(x - 1, y)) {
+                console.log("DEBUG: Path Clear LEFT: " + (x+1))
+                return "Left"
+            }
+            if (!board.isBarrierAt(x + 1, y)) {
+                console.log("DEBUG: Path Clear RIGHT: " + (x+1))
+                return "Right"
+            }
+            return false
+        }
+
+        let PotionEscapeDirection = null
+        if (inDangerZone)
+        {
+            console.log("DEBUG: HERO - " + Hero.x + " " + Hero.y)
+            console.log("DEBUG: POTION - " + Potion.x + " " + Potion.y)
+            const iterDepth = 6
+            if (Hero.y === Potion.y) 
+            {
+                // since the hero cant move inside a potion the side that the hero is on is being calculated and moved towards that direction if there is a passthrough
+                // Horizontal Iteration
+                const RelativeDirectionX = Hero.x - Potion.x > 0 ? 1 : -1 // 1 means to the right of the potion -1 to the left of the potion
+                let IncrementCheck = (i) => {
+                    let result = checkTopBottom(i, Hero.y)
+                    if (result) {
+                        if (Hero.x === i) {
+                            PotionEscapeDirection = result
+                            console.log("DEBUG: X " + "Got Result")
+                        } else {
+                            PotionEscapeDirection = RelativeDirectionX === 1 ? "Right" : "Left"
+                            console.log("DEBUG: X " + "Keep Going")
+                        }
+                        return true
+                    }
+                    return false
+                }
+                if (RelativeDirectionX === 1)
+                {
+                    for (let i = Potion.x; i <= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
+                        const res = IncrementCheck(i)
+                        if (res) 
+                            break;
+                    }
+                } else {
+                    for (let i = Potion.x; i >= Potion.x + (iterDepth * RelativeDirectionX); i += RelativeDirectionX) {
+                        const res = IncrementCheck(i)
+                        if (res) 
+                            break;
+                    }
+                }
+                
+            } 
+            if (Hero.x === Potion.x) {
+                // Vertical Iteration
+                const RelativeDirectionY = Hero.y - Potion.y > 0 ? 1 : -1 // -1
+                let IncrementCheck = function(i)
+                {
+                    let result = checkLeftRight(Hero.x, i)
+                    if (result) {
+                        if (i === Hero.y) {
+                            PotionEscapeDirection = result
+                            console.log("DEBUG: Y " + "Got Result")
+                        } else {
+                            PotionEscapeDirection = RelativeDirectionY === 1 ? "Up" : "Down"
+                            console.log("DEBUG: Y " + "Keep Going")
+                        }
+                        return true
+                    }
+                    return false
+                }
+                if (RelativeDirectionY === 1)
+                {
+                    for (let i = Potion.y; i <= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
+                        const res = IncrementCheck(i)
+                        if (res) 
+                            break;
+                    }
+                } else {
+                    for (let i = Potion.y; i >= Potion.y + (iterDepth * RelativeDirectionY); i += RelativeDirectionY) {
+                        const res = IncrementCheck(i)
+                        if (res) 
+                            break;
+                    }
+                }
+            }
+        }
+
+        /// GHOST EVASION
+
+        const nearHero = board.getNear(Hero.x, Hero.y)
+        const gridDirections = {
+            3: "Left",
+            5: "Right",
+            1: "Up",
+            7: "Down"
+        }
+        let GhostEscapeDirection = null
+        for (let i = 0; i < nearHero.length; i++)
+        {
+            const element = nearHero[i]
+            const isBordered = BorderIndexes.includes(i)
+            if (isBordered && (element === elements.GHOST || element === elements.GHOST_DEAD) )
+            {
+                console.log("DEBUG: ghost detected on the BORDER")
+                console.log("DEBUG: ")
+                console.log(nearHero)
+                console.log(nearHero[0], nearHero[8])
+                /// CHECK FOR SAFE AND FREE CELL AWAY FROM THE GHOST
+                GhostEscapeDirection = gridDirections[8 - i]
+                break;
+            } else if (element === elements.GHOST || element === elements.GHOST_DEAD) {
+                console.log("DEBUG: ghost detected on the CORNER")
+                let Dir1 = null
+                let Dir2 = null
+                switch (i){
+                    case 2:
+                        Dir1 = gridDirections[1]
+                        Dir2 = gridDirections[5]
+                        break;
+                    case 8:
+                        Dir1 = gridDirections[7]
+                        Dir2 = gridDirections[5]
+                        break;
+                    case 0:
+                        Dir1 = gridDirections[1]
+                        Dir2 = gridDirections[3]
+                        break;
+                    case 6:
+                        Dir1 = gridDirections[3]
+                        Dir2 = gridDirections[7]
+                        break;
+                }
+                let DirIndex = availableDirections.indexOf(Dir1)
+                if (DirIndex !== -1)
+                    availableDirections.splice(DirIndex, 1)
+                DirIndex = availableDirections.indexOf(Dir2)
+                if (DirIndex !== -1) 
+                    availableDirections.splice(DirIndex, 1)
+                if (availableDirections.length > 0) {
+                    while (availableDirections.length > 0)
+                    {
+                        let tempDir = availableDirections[Math.floor(Math.random() * availableDirections.length)];
+                        let pos = {'x': Hero.x, 'y': Hero.y}
+                        switch(tempDir){
+                            case "Right":
+                                pos.x += 1
+                                break;
+                            case "Left":
+                                pos.x -= 1;
+                                break;
+                            case "Up": 
+                                pos.y += 1;
+                                break;
+                            case "Down": 
+                                pos.y -= 1;
+                                break;
+                        }
+                        const safe = checkCellSafety(pos.x, pos.y)
+                        if (safe) {
+                            GhostEscapeDirection = tempDir
+                            break
+                        } else {
+                            availableDirections.pop
+                        }
+                    }
+                    
+                }
+            }
+        }
+
+        /// SUICIDE PREVENTION HOTLINE (not going into the direction of the blast)
+
+        const SAFETYNET = 4
+        if (!PotionEscapeDirection && !inDangerZone)
+        {
+            for(let i = 0; i < availableDirections.length; i++)
+            {
+                let Danger = false
+                let dir = availableDirections[i]
+                let pos = {'x': Hero.x, 'y': Hero.y}
+                switch(dir){
+                    case "Right":
+                        pos.x += 1
+                        break;
+                    case "Left":
+                        pos.x -= 1;
+                        break;
+                    case "Up":
+                        pos.y += 1;
+                        break;
+                    case "Down":
+                        pos.y -= 1;
+                        break;
+                }
+                for (let j = 0; j < PendingPotions.length; j++)
+                {
+                    const potion = PendingPotions[j]
+
+                    if ((pos.x === potion.x && pos.y === potion.y) 
+                    || (pos.x > potion.x - SAFETYNET && pos.x < potion.x + SAFETYNET && pos.y === potion.y) // in the range of the blast on x axis
+                    || (pos.y > potion.y - SAFETYNET && pos.y < potion.y + SAFETYNET && pos.x === potion.x)) { // in the range of the blast on y axis
+                        Danger = true
+                    } 
+                }
+                if (Danger)
+                    availableDirections.splice(i, 1)
+            }
+        }
+
+        /// DIRECTION LOGIC
+        let MainDirection = null
+        if (GhostEscapeDirection) 
+        {
+            MainDirection = GhostEscapeDirection
+            console.log("GHOST EVASION: " + MainDirection + '\n')
+        } else if (PotionEscapeDirection) {
+            MainDirection = PotionEscapeDirection
+            console.log("POTION EVASION: " + MainDirection + '\n')
+        } else {
+            let PathDirection = availableDirections[Math.floor(Math.random() * availableDirections.length)]
+            MainDirection = PathDirection
+            console.log("PATHFINDING DIRECTION: " + MainDirection + '\n')
+        }
+
+        MovementAction = Actions[MainDirection]
+        LastMovement = MainDirection
+
+        if (!PotionAction && getPotionValid(Hero.x, Hero.y)) 
+        {
+            PotionAction = Actions["Plant"]
+        }
+
+
+        /// SUICIDE PREVENTION HOTLINE BACKUP (bot not trap itself and die from self inflicted potions)
+
+        if (PotionAction)
+        {
+            let PossibleDirections = []
+
+            // RIGHT
+            for (let i = Hero.x; i < Hero.x + 4; i++)
+            {
+                let result = checkTopBottom(i, Hero.y)
+                if (result) {
+                    PossibleDirections.push("Right") 
+                    break;
+                }
+            }
+
+            // LEFT
+            for (let i = Hero.x; i > Hero.x - 4; i--)
+            {
+                let result = checkTopBottom(i, Hero.y)
+                if (result) {
+                    PossibleDirections.push("Left")
+                    break;
+                }
+            }
+            // UP
+            for (let i = Hero.y; i < Hero.y + 4; i++)
+            {
+                let result = checkLeftRight(Hero.x, i)
+                if (result) {
+                    PossibleDirections.push("Up")
+                    break;
+                }
+            }
+            // DOWN
+            for (let i = Hero.y; i > Hero.y - 4; i--)
+            {
+                let result = checkLeftRight(Hero.x, i)
+                if (result) {
+                    PossibleDirections.push("Down")
+                    break;
+                }
+            }
+            if (PossibleDirections.length === 0) {
+                console.log("DEBUG: ACTION CANCELLED")
+                MovementAction = null
+            } else {
+                if (!PossibleDirections.includes(MainDirection)) {
+                    let PathDirection = PossibleDirections[Math.floor(Math.random() * PossibleDirections.length)]
+                    MainDirection = PathDirection
+                    MovementAction = Actions[MainDirection]
+                    console.log("SUICIDE HOTLINE GUIDED DIRECTION: " + MainDirection + '\n')
+                }
+                    
+            }
+
+        }
+
+        let answer1 = !PotionAction ? "" : PotionAction
+        let answer2 = !MovementAction ? "" : MovementAction
         return answer1.toString() + answer2.toString()
     }
 };

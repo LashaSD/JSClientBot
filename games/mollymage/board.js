@@ -140,6 +140,31 @@ var MollymageBoard = module.exports = function(board){
         return board.contains(board.getBarriers(), new Point(x, y));
     };
 
+    
+    board.isInPotionBlastRadius = function(x, y)
+    {
+        let PendingPotions = []
+        PendingPotions.concat(board.findAll())
+        PendingPotions = PendingPotions.concat(board.findAll(Element.HERO_POTION));
+        PendingPotions = PendingPotions.concat(board.findAll(Element.OTHER_HERO_POTION));
+        PendingPotions = PendingPotions.concat(board.findAll(Element.ENEMY_HERO_POTION));
+        PendingPotions = PendingPotions.concat(board.findAll(Element.POTION_TIMER_1))
+        PendingPotions = PendingPotions.concat(board.findAll(Element.POTION_TIMER_2))
+        PendingPotions.forEach(potion => {
+            if (x === potion.x && y === potion.y) { // same coords as potion 
+                console.log("BOTH")
+                return [1, potion] 
+            } else if (x >= potion.x - 3 && x <= potion.x + 3 && y === potion.y) {  // in radius on x axis
+                console.log("X")
+                return [2, potion] 
+            } else if (y >= potion.y - 3 && y <= potion.y + 3 && x === potion.x) { // in radius on y axis
+                console.log("Y")
+                return [3, potion] 
+            } 
+        })
+        return 0
+    }
+
     board.toString = function() {
         return Stuff.format("%s\n" +
           "Hero at: %s\n" +
